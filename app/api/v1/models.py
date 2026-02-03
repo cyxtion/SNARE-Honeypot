@@ -4,6 +4,7 @@ from typing import Optional, Any, Dict, List, Union
 class AgentResponse(BaseModel):
     status: str = "success"
     reply: str
+
 class IncomingRequest(BaseModel):
     sessionId: Optional[Union[str, int, Any]] = "unknown_session"
     message: Optional[Union[Dict[str, Any], str, Any]] = None
