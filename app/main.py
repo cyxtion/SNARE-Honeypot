@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Header, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Header, HTTPException, BackgroundTasks, Request
 from app.config import get_settings
 from app.api.v1.models import IncomingRequest, AgentResponse
 from app.core.intelligence import harvester
@@ -15,6 +15,7 @@ app = FastAPI(title="S.N.A.R.E. Enterprise System")
 async def honey_pot_endpoint(
     payload: IncomingRequest, 
     background_tasks: BackgroundTasks,
+    request: Request,
     x_api_key: str = Header(None)
 ):
     if x_api_key != settings.API_SECRET_KEY:
@@ -23,10 +24,14 @@ async def honey_pot_endpoint(
 
     user_text = payload.text
     if not user_text and isinstance(payload.message, dict):
-        user_text = payload.message.get("text", "")
-    elif not user_text and isinstance(payload.message, str):
-        user_text = payload.message
-    
+        user_text = payload.message.get("text")
+    if not user_text:
+        try:
+            raw_body = await request.json()
+            user_text = raw_body.get("message", {}).get("text") or raw_body.get("text")
+        except:
+            pass
+
     if not user_text:
         user_text = "Hello"
 
@@ -41,7 +46,7 @@ async def honey_pot_endpoint(
                       len(intel_data.get("bank_account", [])) > 0 or
                       len(intel_data.get("url", [])) > 0)
     
-    current_msg_count = len(payload.conversationHistory) + 1
+    current_msg_count = len(payload.conversationHistory) + 1 if payload.conversationHistory else 1
 
     if found_critical:
         logger.info(f"Triggering Background Report for Session {payload.sessionId}")
@@ -51,14 +56,11 @@ async def honey_pot_endpoint(
             intel_data, 
             current_msg_count
         )
-
     try:
-        reply_text = await brain.generate_response(user_text, payload.conversationHistory)
+        reply_text = await brain.generate_response(user_text, payload.conversationHistory or [])
     except Exception as e:
         logger.error(f"Brain Engine Failure: {e}")
         reply_text = "I am sorry, my internet is very slow right now. Can you tell me that again?"
-
-    logger.info(f"Agent Reply: {reply_text[:50]}...")
 
     return {
         "status": "success",
@@ -67,4 +69,4 @@ async def honey_pot_endpoint(
 
 @app.get("/")
 def health_check():
-    return {"system": "S.N.A.R.E.", "status": "online", "version": "2.2.0-Robust"}
+    return {"system": "S.N.A.R.E.", "status": "online", "version": "2.3.0-Universal"}
