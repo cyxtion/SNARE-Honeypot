@@ -1,4 +1,3 @@
-import sentry_sdk
 from fastapi import FastAPI, Header, HTTPException, BackgroundTasks
 from app.config import get_settings
 from app.api.v1.models import IncomingRequest, AgentResponse
@@ -9,12 +8,6 @@ from app.utils.logger import get_logger
 
 settings = get_settings()
 logger = get_logger()
-
-sentry_sdk.init(
-    dsn="https://7758f1e876901a20bf3d909376143a6b@o4510821431181312.ingest.us.sentry.io/4510821442125824",
-    traces_sample_rate=1.0,
-    profiles_sample_rate=1.0,
-)
 
 app = FastAPI(title="S.N.A.R.E. Enterprise System")
 
@@ -33,7 +26,7 @@ async def honey_pot_endpoint(
     intel_data = harvester.analyze(payload.text)
     
     if intel_data:
-        logger.success(f"Intelligence Extracted: {intel_data}")
+        logger.success(f"🔍 Intelligence Extracted: {intel_data}")
 
     found_critical = (len(intel_data.get("upi", [])) > 0 or 
                       len(intel_data.get("bank_account", [])) > 0 or
