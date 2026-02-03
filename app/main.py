@@ -21,12 +21,12 @@ async def honey_pot_endpoint(
         logger.warning(f"Unauthorized Access Attempt: {x_api_key}")
         raise HTTPException(status_code=401, detail="Invalid API Key")
 
-    logger.info(f"Received Session: {payload.sessionId} | Input: {payload.text[:50]}...")
+    logger.info(f"Received Session: {payload.sessionId}")
 
-    intel_data = harvester.analyze(payload.text)
+    intel_data = harvester.analyze(payload.text) or {}
     
     if intel_data:
-        logger.success(f"🔍 Intelligence Extracted: {intel_data}")
+        logger.success(f"Intelligence Extracted: {intel_data}")
 
     found_critical = (len(intel_data.get("upi", [])) > 0 or 
                       len(intel_data.get("bank_account", [])) > 0 or
@@ -55,7 +55,6 @@ async def honey_pot_endpoint(
         "status": "success",
         "reply": reply_text
     }
-
 @app.get("/")
 def health_check():
-    return {"system": "S.N.A.R.E.", "status": "online", "version": "2.0.0-Enterprise"}
+    return {"system": "S.N.A.R.E.", "status": "online", "version": "2.1.0-Stable"}
