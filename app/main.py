@@ -21,9 +21,18 @@ async def honey_pot_endpoint(
         logger.warning(f"Unauthorized Access Attempt: {x_api_key}")
         raise HTTPException(status_code=401, detail="Invalid API Key")
 
-    logger.info(f"Received Session: {payload.sessionId}")
+    user_text = payload.text
+    if not user_text and isinstance(payload.message, dict):
+        user_text = payload.message.get("text", "")
+    elif not user_text and isinstance(payload.message, str):
+        user_text = payload.message
+    
+    if not user_text:
+        user_text = "Hello"
 
-    intel_data = harvester.analyze(payload.text) or {}
+    logger.info(f"Received Session: {payload.sessionId} | Input: {user_text[:50]}...")
+
+    intel_data = harvester.analyze(user_text) or {}
     
     if intel_data:
         logger.success(f"Intelligence Extracted: {intel_data}")
@@ -44,7 +53,7 @@ async def honey_pot_endpoint(
         )
 
     try:
-        reply_text = await brain.generate_response(payload.text, payload.conversationHistory)
+        reply_text = await brain.generate_response(user_text, payload.conversationHistory)
     except Exception as e:
         logger.error(f"Brain Engine Failure: {e}")
         reply_text = "I am sorry, my internet is very slow right now. Can you tell me that again?"
@@ -55,6 +64,7 @@ async def honey_pot_endpoint(
         "status": "success",
         "reply": reply_text
     }
+
 @app.get("/")
 def health_check():
-    return {"system": "S.N.A.R.E.", "status": "online", "version": "2.1.0-Stable"}
+    return {"system": "S.N.A.R.E.", "status": "online", "version": "2.2.0-Robust"}
