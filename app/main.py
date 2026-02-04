@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Header, HTTPException, BackgroundTasks, Request
 from app.config import get_settings
-from app.api.v1.models import IncomingRequest, AgentResponse
+from app.api.v1.models import AgentResponse
 from app.core.intelligence import harvester
 from app.services.llm_engine import brain
 from app.services.callback_worker import execute_guvi_callback
@@ -13,7 +13,6 @@ app = FastAPI(title="S.N.A.R.E. Enterprise System")
 
 @app.post("/honey-pot", response_model=AgentResponse)
 async def honey_pot_endpoint(
-    payload: IncomingRequest, 
     background_tasks: BackgroundTasks,
     request: Request,
     x_api_key: str = Header(None)
@@ -22,20 +21,23 @@ async def honey_pot_endpoint(
         logger.warning(f"Unauthorized Access Attempt: {x_api_key}")
         raise HTTPException(status_code=401, detail="Invalid API Key")
 
-    user_text = payload.text
-    if not user_text and isinstance(payload.message, dict):
-        user_text = payload.message.get("text")
-    if not user_text:
-        try:
-            raw_body = await request.json()
-            user_text = raw_body.get("message", {}).get("text") or raw_body.get("text")
-        except:
-            pass
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
 
+    session_id = body.get("sessionId", "unknown_session")
+    
+    user_text = body.get("text")
+    if not user_text and isinstance(body.get("message"), dict):
+        user_text = body["message"].get("text")
+    elif not user_text and isinstance(body.get("message"), str):
+        user_text = body["message"]
+    
     if not user_text:
         user_text = "Hello"
 
-    logger.info(f"Received Session: {payload.sessionId} | Input: {user_text[:50]}...")
+    logger.info(f"Received Session: {session_id} | Input: {user_text[:50]}...")
 
     intel_data = harvester.analyze(user_text) or {}
     
@@ -46,18 +48,23 @@ async def honey_pot_endpoint(
                       len(intel_data.get("bank_account", [])) > 0 or
                       len(intel_data.get("url", [])) > 0)
     
-    current_msg_count = len(payload.conversationHistory) + 1 if payload.conversationHistory else 1
+    history = body.get("conversationHistory", [])
+    if not isinstance(history, list):
+        history = []
+        
+    current_msg_count = len(history) + 1
 
     if found_critical:
-        logger.info(f"Triggering Background Report for Session {payload.sessionId}")
+        logger.info(f"Triggering Background Report for Session {session_id}")
         background_tasks.add_task(
             execute_guvi_callback, 
-            payload.sessionId, 
+            session_id, 
             intel_data, 
             current_msg_count
         )
+
     try:
-        reply_text = await brain.generate_response(user_text, payload.conversationHistory or [])
+        reply_text = await brain.generate_response(user_text, history)
     except Exception as e:
         logger.error(f"Brain Engine Failure: {e}")
         reply_text = "I am sorry, my internet is very slow right now. Can you tell me that again?"
@@ -69,4 +76,4 @@ async def honey_pot_endpoint(
 
 @app.get("/")
 def health_check():
-    return {"system": "S.N.A.R.E.", "status": "online", "version": "2.3.0-Universal"}
+    return {"status": "online", "version": "2.5.0-NoValidation"}
